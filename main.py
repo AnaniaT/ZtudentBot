@@ -1,7 +1,7 @@
 import telebot
 from telebot import types
 import sqlite3, re
-from flask import Flask, request
+# from flask import Flask, request
 
 # Connect to the database
 conn = sqlite3.connect(
@@ -25,8 +25,8 @@ conn.commit()
 # API_KEY = os.getenv('API_KEY') #5843568454:AAGhXApmwk9Q14ibaoiqE5nvaV6xjPgWtTE
 API_KEY = '5843568454:AAGhXApmwk9Q14ibaoiqE5nvaV6xjPgWtTE'
 bot = telebot.TeleBot(API_KEY, threaded=False)
-bot.remove_webhook()
-bot.set_webhook(url=f'https://anania12345.pythonanywhere.com/{API_KEY[30:]}')
+bot.set_webhook()
+# bot.set_webhook(url=f'https://anania12345.pythonanywhere.com/{API_KEY[30:]}')
 
 # ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID') #553145791
 ADMIN_CHAT_ID = '553145791'
@@ -35,12 +35,12 @@ ADMIN_CHAT_ID = '553145791'
 CAMPUS_LIST = ['sefere selam', '4 kilo', '5 kilo', '6 kilo', 'lideta']
 
 
-app = Flask(__name__)
-@app.route(f'/{API_KEY[30:]}', methods=['POST'])
-def webhook():
-  update = telebot.types.Update.de_json(request.stream.read().decode('utf-8'))
-  bot.process_new_updates([update])
-  return 200
+# app = Flask(__name__)
+# @app.route(f'/{API_KEY[30:]}', methods=['POST'])
+# def webhook():
+#   update = telebot.types.Update.de_json(request.stream.read().decode('utf-8'))
+#   bot.process_new_updates([update])
+#   return 200
 
 
 @bot.message_handler(func=lambda m: m.content_type != 'text')
