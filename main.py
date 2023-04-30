@@ -1,7 +1,6 @@
 import telebot
 from telebot import types
 import sqlite3, re
-from flask import Flask, request
 
 # Connect to the database
 conn = sqlite3.connect(
@@ -25,22 +24,13 @@ conn.commit()
 # API_KEY = os.getenv('API_KEY') #5843568454:AAGhXApmwk9Q14ibaoiqE5nvaV6xjPgWtTE
 API_KEY = '5843568454:AAGhXApmwk9Q14ibaoiqE5nvaV6xjPgWtTE'
 bot = telebot.TeleBot(API_KEY, threaded=False)
-bot.remove_webhook()
-bot.set_webhook(url=f'https://anania12345.pythonanywhere.com/{API_KEY[30:]}')
+bot.set_webhook()
 
 # ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID') #553145791
 ADMIN_CHAT_ID = '553145791'
 
 # ensure all campus names are lowercase here
 CAMPUS_LIST = ['sefere selam', '4 kilo', '5 kilo', '6 kilo', 'lideta']
-
-
-app = Flask(__name__)
-@app.route(f'/{API_KEY[30:]}', methods=['POST'])
-def webhook():
-  update = telebot.types.Update.de_json(request.stream.read().decode('utf-8'))
-  bot.process_new_updates([update])
-  return 200
 
 
 @bot.message_handler(func=lambda m: m.content_type != 'text')
@@ -112,6 +102,12 @@ def process_name_step(msg):
         'Starting over will erase the previous profile you made. Type yes to continue.'
       )
       bot.register_next_step_handler(msg, start_over)
+    elif name.lower() == '/start':
+      bot.send_message(
+        msg.chat.id,
+        'start command not effective here. Please /start_over to start from the beginning.'
+      )
+      bot.register_next_step_handler(msg, process_name_step)
     elif name.lower() == '/help':
       help(msg)
     else:
@@ -147,6 +143,12 @@ def process_ugr_step(msg):
       'Starting over will erase the previous profile you made. Type yes to continue.'
     )
     bot.register_next_step_handler(msg, start_over)
+  elif ugr.lower() == '/start':
+      bot.send_message(
+        msg.chat.id,
+        'start command not effective here. Please /start_over to start from the beginning.'
+      )
+      bot.register_next_step_handler(msg, process_ugr_step)
   elif ugr.lower() == '/help':
     help(msg)
   else:
@@ -174,6 +176,12 @@ def process_campus_step(msg):
       'Starting over will erase the previous profile you made. Type yes to continue.'
     )
     bot.register_next_step_handler(msg, start_over)
+  elif campus == '/start':
+      bot.send_message(
+        msg.chat.id,
+        'start command not effective here. Please /start_over to start from the beginning.'
+      )
+      bot.register_next_step_handler(msg, process_campus_step)
   elif campus == '/help':
     help(msg)
   else:
@@ -183,9 +191,22 @@ def process_campus_step(msg):
 
 
 def process_finish(msg):
-  if msg.text == '/help':
+  m = msg.text.lower()
+  if m == '/help':
     help(msg)
     return
+  elif m == '/start':
+    bot.send_message(
+      msg.chat.id,
+      'start command not effective here. Please /start_over to start from the beginning.'
+    )
+    bot.register_next_step_handler(msg, process_finish)
+  elif m == '/start_over':
+    bot.send_message(
+      msg.chat.id,
+      'Starting over will erase the previous profile you made. Type yes to continue.'
+    )
+    bot.register_next_step_handler(msg, start_over)
   res = "We are processing the data you have already sent. We will send you your login code. Please wait."
   bot.send_message(msg.chat.id, res)
 
@@ -194,7 +215,7 @@ def process_finish(msg):
 def start_over(msg):
   if (msg.text != 'yes') & (msg.text != '/start_over'):
     bot.send_message(msg.chat.id,
-                     'Starting over canceled. Press /start to continue.')
+                     'Starting over canceled. Press /start to continue where you left off.')
     return
   try:
     cursor.execute("UPDATE students SET currentstep = ? WHERE chatid = ?",
