@@ -1,7 +1,7 @@
-import os, re
 import telebot
 from telebot import types
-import sqlite3
+import sqlite3, re
+from flask import Flask, request
 
 # Connect to the database
 conn = sqlite3.connect(
@@ -22,15 +22,25 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS students
 # Commit the changes to the database
 conn.commit()
 
-# API_KEY = os.getenv('API_KEY') #1773763616:AAExAuJQH2o_k5nIyONuIkfRlb5heYDhfyc
-API_KEY = '1773763616:AAExAuJQH2o_k5nIyONuIkfRlb5heYDhfyc'
-bot = telebot.TeleBot(API_KEY)
+# API_KEY = os.getenv('API_KEY') #5843568454:AAGhXApmwk9Q14ibaoiqE5nvaV6xjPgWtTE
+API_KEY = '5843568454:AAGhXApmwk9Q14ibaoiqE5nvaV6xjPgWtTE'
+bot = telebot.TeleBot(API_KEY, threaded=False)
+bot.remove_webhook()
+bot.set_webhook(url=f'https://anania12345.pythonanywhere.com/{API_KEY[30:]}')
 
 # ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID') #553145791
 ADMIN_CHAT_ID = '553145791'
 
 # ensure all campus names are lowercase here
 CAMPUS_LIST = ['sefere selam', '4 kilo', '5 kilo', '6 kilo', 'lideta']
+
+
+app = Flask(__name__)
+@app.route(f'/{API_KEY[30:]}', methods=['POST'])
+def webhook():
+  update = telebot.types.Update.de_json(request.stream.read().decode('utf-8'))
+  bot.process_new_updates([update])
+  return 200
 
 
 @bot.message_handler(func=lambda m: m.content_type != 'text')
@@ -214,7 +224,7 @@ def help(msg):
     Welcome {msg.from_user.first_name}! This a simple customized bot for the Ztudent application. 
 
 What is Ztudent?
-    Ztudent is an app that aims to help you make informed decision to shape your future career. It does so by gathering student grades and their desired departments. Finally you, the resistered student, are able to:
+    Ztudent is an app that aims to help you make informed decision to shape your future career. It does so by gathering student grades and their desired departments. Finally you, the registered student, are able to:
       - view the how many students are interested in any particular department
       - compare your grades with all students interested in that same department
       - see the average grades of the total students in any particular department
@@ -229,7 +239,7 @@ Common Problems:
 - Most problems can be fixed by /start_over
 
 Contact the creator(@hhanizu) for further information.
-    
+Ztudent Bot is a simple bot that assists registration for the Ztudent application. Ztudent is only for AAU students. 
 Supported commands:
     /start - to begin or continue setting up your profile.
     /help - show detailed help message.
@@ -237,6 +247,7 @@ Supported commands:
     
     """
   bot.send_message(msg.chat.id, res)
+
 
 
 @bot.message_handler(func=lambda m: True)
