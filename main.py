@@ -5,7 +5,7 @@ import sqlite3, re
 # Connect to the database
 conn = sqlite3.connect(
   'newDB.db',
-  check_same_thread=False)  # replace mydatabase.db with the name you prefer
+  check_same_thread=False)
 
 # Create a cursor object to execute database queries
 cursor = conn.cursor()
@@ -21,10 +21,8 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS students
 # Commit the changes to the database
 conn.commit()
 
-# API_KEY = os.getenv('API_KEY') #5843568454:AAGhXApmwk9Q14ibaoiqE5nvaV6xjPgWtTE
-API_KEY = '5843568454:AAGhXApmwk9Q14ibaoiqE5nvaV6xjPgWtTE'
-bot = telebot.TeleBot(API_KEY, threaded=False)
-bot.set_webhook()
+API_KEY = '5843568454:AAFKBxncJ03DMxbaBp6btShoyCglcnI5K5g'
+bot = telebot.TeleBot(API_KEY)
 
 # ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID') #553145791
 ADMIN_CHAT_ID = '553145791'
@@ -41,11 +39,12 @@ def msg_type_restriction(msg):
 
 @bot.message_handler(commands=['start'])
 def start(msg):
-  cursor.execute(
+  cursor = conn.execute(
     "SELECT chatid, name, currentstep FROM students WHERE chatid = ?",
     (msg.chat.id, ))
-  conn.commit()
+
   user = cursor.fetchone()
+  next = None
 
   if user:
     if user[2] == 'name':
@@ -66,89 +65,88 @@ def start(msg):
       next = process_campus_step
 
     elif user[2] == 'finish':
-      text = f"""Hey, {user[1].split(' ')[0].capitalize()}. You have already finished setting up your profile. We are processing the data you have already sent. We will send you your login code. Please wait."""
+      res = f"""Hey, {user[1].split(' ')[0].capitalize()}. You have already finished setting up your profile. We are processing the data you have already sent. We will send you your login code. Please wait."""
+
     bot.send_message(msg.chat.id, res)
-    bot.register_next_step_handler(msg, next)
+    if next != None:
+        bot.register_next_step_handler(msg, next)
 
   else:
-    cursor.execute("INSERT INTO students (chatid, currentstep) VALUES (?, ?)",
-                   (msg.chat.id, 'name'))
+    conn.execute("INSERT INTO students (chatid, currentstep) VALUES (?, ?)",
+                 (msg.chat.id, 'name'))
     conn.commit()
-    text = f"""
+    res = f"""
     Hey there {msg.from_user.first_name}! Welcome, this is a customized bot for the Ztudent application. Ztudent aims to help you make informed decision to shape your future career.
     """
-    bot.send_message(msg.chat.id, text)
-    text = " Lets get started off with your Ztudent profile. What is your name (legal name)?"
-    msg = bot.send_message(msg.chat.id, text)
+    bot.send_message(msg.chat.id, res)
+    res = " Lets get started off with your Ztudent profile. What is your name (legal name)?"
+    msg = bot.send_message(msg.chat.id, res)
     bot.register_next_step_handler(msg, process_name_step)
 
 
 def process_name_step(msg):
-  try:
-    print('Name =  ' + msg.text)
-    name = msg.text.strip()
-    if re.match(r'^[a-zA-Z]+(\s[a-zA-Z]+)$', name):
-      conn.execute(
-        "UPDATE students SET name = ?, currentstep = ? WHERE chatid = ?",
-        (name, 'reg', msg.chat.id))
-      conn.commit()
+  name = msg.text.strip()
+  if re.match(r'^[a-zA-Z]+(\s[a-zA-Z]+)$', name):
+    conn.execute(
+      "UPDATE students SET name = ?, currentstep = ? WHERE chatid = ?",
+      (name, 'reg', msg.chat.id))
+    conn.commit()
 
-      res = f"""Okay, {name.split(' ')[0].capitalize()}! What is your registration number? It is something like UGR/0000/15."""
-      bot.send_message(msg.chat.id, res)
-      bot.register_next_step_handler(msg, process_ugr_step)
-    elif name.lower() == '/start_over':
-      bot.send_message(
-        msg.chat.id,
-        'Starting over will erase the previous profile you made. Type yes to continue.'
-      )
-      bot.register_next_step_handler(msg, start_over)
-    elif name.lower() == '/start':
-      bot.send_message(
-        msg.chat.id,
-        'start command not effective here. Please /start_over to start from the beginning.'
-      )
-      bot.register_next_step_handler(msg, process_name_step)
-    elif name.lower() == '/help':
-      help(msg)
-    else:
-      res = """Name invalid. It must consist first name and last name separated by a single space. Please check and try again."""
-      bot.send_message(msg.chat.id, res)
-      bot.register_next_step_handler(msg, process_name_step)
-
-  except Exception as e:
-    print(e)
-    bot.reply_to(msg, 'Oops! Something went wrong.')
+    res = f"""Okay, {name.split(' ')[0].capitalize()}! What is your registration number? It is something like UGR/0000/15."""
+    bot.send_message(msg.chat.id, res)
+    bot.register_next_step_handler(msg, process_ugr_step)
+  elif name.lower() == '/start_over':
+    bot.send_message(
+      msg.chat.id,
+      'Starting over will erase the previous profile you made. Type yes to continue or cancel by typing anything else.'
+    )
+    bot.register_next_step_handler(msg, start_over)
+  elif name.lower() == '/start':
+    bot.send_message(
+      msg.chat.id,
+      'start command not effective here. Tap /start_over to start profile from the beginning or continue profile by providing your name.'
+    )
+    bot.register_next_step_handler(msg, process_name_step)
+  elif name.lower() == '/help':
+    help(msg)
+  else:
+    res = """Name invalid. It must consist first name and last name separated by a single space. Please check and try again."""
+    bot.send_message(msg.chat.id, res)
+    bot.register_next_step_handler(msg, process_name_step)
 
 
 def process_ugr_step(msg):
-  print('UGR = ' + msg.text)
   ugr = msg.text.upper()
   if re.match(r'^UGR/\d{4}/15$', ugr):
-    cursor.execute(
-      "UPDATE students SET registration_number = ?, currentstep = ? WHERE chatid = ?",
-      (ugr, 'campus', msg.chat.id))
-    conn.commit()
+    try:
+      conn.execute(
+        "UPDATE students SET registration_number = ?, currentstep = ? WHERE chatid = ?",
+        (ugr, 'campus', msg.chat.id))
+      conn.commit()
+    except sqlite3.IntegrityError:
+      res = f'Registration number{ugr} already used. Report to @hhanizu if your registration number was used by someone else.'
+      bot.send_message(msg.chat.id, res)
+    finally:
+      markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+      for c in CAMPUS_LIST:
+        item = types.KeyboardButton(c.capitalize())
+        markup.add(item)
 
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-    for c in CAMPUS_LIST:
-      item = types.KeyboardButton(c.capitalize())
-      markup.add(item)
-
-    res = "Okay! Which campus are you in?"
-    bot.send_message(msg.chat.id, res, reply_markup=markup)
-    bot.register_next_step_handler(msg, process_campus_step)
+      res = "Okay! Which campus are you in?"
+      bot.send_message(msg.chat.id, res, reply_markup=markup)
+      bot.register_next_step_handler(msg, process_campus_step)
   elif ugr.lower() == '/start_over':
     bot.send_message(
       msg.chat.id,
-      'Starting over will erase the previous profile you made. Type yes to continue.'
+      'Starting over will erase the previous profile you made. Type yes to continue or cancel by typing anything else.'
     )
     bot.register_next_step_handler(msg, start_over)
   elif ugr.lower() == '/start':
-      bot.send_message(
-        msg.chat.id,
-        'start command not effective here. Please /start_over to start from the beginning.'
-      )
-      bot.register_next_step_handler(msg, process_ugr_step)
+    bot.send_message(
+      msg.chat.id,
+      'start command not effective here. Tap /start_over to start profile from the beginning or continue profile by provding your registration number.'
+    )
+    bot.register_next_step_handler(msg, process_ugr_step)
   elif ugr.lower() == '/help':
     help(msg)
   else:
@@ -158,30 +156,28 @@ def process_ugr_step(msg):
 
 
 def process_campus_step(msg):
-  print('Campus = ' + msg.text)
   campus = msg.text.lower()
   if campus in CAMPUS_LIST:
-    cursor.execute(
+    conn.execute(
       "UPDATE students SET campus = ?, currentstep = ? WHERE chatid = ?",
       (campus, 'finish', msg.chat.id))
     conn.commit()
 
     markup = types.ReplyKeyboardRemove(selective=False)
-    res = "Nice! We will send you a login code to activate your app. This usually take time (max two days). See you soon!!"
+    res = "Nice! We will send you a login code to activate your app. This usually take time please be patient. See you soon!!"
     bot.send_message(msg.chat.id, res, reply_markup=markup)
-    bot.register_next_step_handler(msg, process_finish)
   elif campus == '/start_over':
     bot.send_message(
       msg.chat.id,
-      'Starting over will erase the previous profile you made. Type yes to continue.'
+      'Starting over will erase the previous profile you made. Type yes to continue or cancel by typing anything else.'
     )
     bot.register_next_step_handler(msg, start_over)
   elif campus == '/start':
-      bot.send_message(
-        msg.chat.id,
-        'start command not effective here. Please /start_over to start from the beginning.'
-      )
-      bot.register_next_step_handler(msg, process_campus_step)
+    bot.send_message(
+      msg.chat.id,
+      'start command not effective here. Tap /start_over to start profile from the beginning or continue profile by selecting your campus name.'
+    )
+    bot.register_next_step_handler(msg, process_campus_step)
   elif campus == '/help':
     help(msg)
   else:
@@ -190,66 +186,46 @@ def process_campus_step(msg):
     bot.register_next_step_handler(msg, process_campus_step)
 
 
-def process_finish(msg):
-  m = msg.text.lower()
-  if m == '/help':
-    help(msg)
-    return
-  elif m == '/start':
-    bot.send_message(
-      msg.chat.id,
-      'start command not effective here. Please /start_over to start from the beginning.'
-    )
-    bot.register_next_step_handler(msg, process_finish)
-  elif m == '/start_over':
-    bot.send_message(
-      msg.chat.id,
-      'Starting over will erase the previous profile you made. Type yes to continue.'
-    )
-    bot.register_next_step_handler(msg, start_over)
-  res = "We are processing the data you have already sent. We will send you your login code. Please wait."
-  bot.send_message(msg.chat.id, res)
-
-
 @bot.message_handler(commands=['start_over'])
 def start_over(msg):
   if (msg.text != 'yes') & (msg.text != '/start_over'):
-    bot.send_message(msg.chat.id,
-                     'Starting over canceled. Press /start to continue where you left off.')
+    bot.send_message(
+      msg.chat.id,
+      'Starting over canceled. Press /start to continue where you left off.')
     return
   try:
-    cursor.execute("UPDATE students SET currentstep = ? WHERE chatid = ?",
-                   ('name', msg.chat.id))
+    conn.execute("UPDATE students SET currentstep = ? WHERE chatid = ?",
+                 ('name', msg.chat.id))
     conn.commit()
 
     res = """Cleared your previous profile. Let's start again. What is your legal name?"""
     bot.send_message(msg.chat.id, res)
     bot.register_next_step_handler(msg, process_name_step)
 
-  except:
-    cursor.execute("INSERT INTO students (chatid, currentstep) VALUES (?, ?)",
-                   (msg.chat.id, 'name'))
+  except sqlite3.IntegrityError:
+    conn.execute("INSERT INTO students (chatid, currentstep) VALUES (?, ?)",
+                 (msg.chat.id, 'name'))
     conn.commit()
-    text = f"""
+    res = f"""
 Hey there {msg.from_user.first_name}! Welcome, this is a customized bot for the Ztudent application. Ztudent aims to help you make informed decision to shape your future career.
 """
-    bot.send_message(msg.chat.id, text)
-    text = " Lets get started off with your Ztudent profile. What is your name (legal name)?"
-    msg = bot.send_message(msg.chat.id, text)
+    bot.send_message(msg.chat.id, res)
+    res = " Lets get started off with your Ztudent profile. What is your name (legal name)?"
+    msg = bot.send_message(msg.chat.id, res)
     bot.register_next_step_handler(msg, process_name_step)
 
 
 @bot.message_handler(commands=['help'])
 def help(msg):
   res = f"""
-    Welcome {msg.from_user.first_name}! This a simple customized bot for the Ztudent application. 
+    Welcome {msg.from_user.first_name}! This a simple customized bot for the Ztudent application.
 
 What is Ztudent?
     Ztudent is an app that aims to help you make informed decision to shape your future career. It does so by gathering student grades and their desired departments. Finally you, the registered student, are able to:
       - view the how many students are interested in any particular department
       - compare your grades with all students interested in that same department
       - see the average grades of the total students in any particular department
-    
+
 Using these information any student can predict whether he/she is likely to join their department of interest. Accordingly, unlike any other time students take the chance to make a better informed decision regarding their academic career.
 
 What does this bot do?
@@ -260,15 +236,14 @@ Common Problems:
 - Most problems can be fixed by /start_over
 
 Contact the creator(@hhanizu) for further information.
-Ztudent Bot is a simple bot that assists registration for the Ztudent application. Ztudent is only for AAU students. 
+Ztudent Bot is a simple bot that assists registration for the Ztudent application. Ztudent is only for AAU students.
 Supported commands:
     /start - to begin or continue setting up your profile.
     /help - show detailed help message.
     /start_over - discard current progress and start from the beginning.
-    
+
     """
   bot.send_message(msg.chat.id, res)
-
 
 
 @bot.message_handler(func=lambda m: True)

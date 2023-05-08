@@ -1,0 +1,4 @@
+change the api key of the bot
+apply apikey to local unthreaded_main
+copy contents of unthreaded_main to main in pythonanywhere
+reload web app 
