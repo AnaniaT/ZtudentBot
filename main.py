@@ -1,6 +1,6 @@
 import telebot
 from telebot import types
-import sqlite3, re
+import sqlite3, re, requests, json, time
 
 # Connect to the database
 conn = sqlite3.connect(
@@ -21,7 +21,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS students
 # Commit the changes to the database
 conn.commit()
 
-API_KEY = '5843568454:AAFKBxncJ03DMxbaBp6btShoyCglcnI5K5g'
+API_KEY = '5843568454:AAHqj1oxLu84ijlWFETROnOUwlAbZVvRhj0'
 bot = telebot.TeleBot(API_KEY)
 
 # ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID') #553145791
@@ -33,8 +33,8 @@ CAMPUS_LIST = ['sefere selam', '4 kilo', '5 kilo', '6 kilo', 'lideta']
 
 @bot.message_handler(func=lambda m: m.content_type != 'text')
 def msg_type_restriction(msg):
-  text = f'Hey {msg.from_user.first_name}! Sorry I cant process this type of message. Please try again in plain text.'
-  bot.send_message(msg.chat.id, text)
+  res = f'Hey {msg.from_user.first_name}! Sorry I cant process this type of message. Please try again in plain text.'
+  bot.send_message(msg.chat.id, res)
 
 
 @bot.message_handler(commands=['start'])
@@ -257,6 +257,42 @@ Command not recognized. Here are the supported list of commands.\n
   bot.send_message(msg.chat.id, res)
 
 
-print('Bot running...')
-bot.polling()
-conn.close()
+def _init_bot(data):
+  id_set = {u['message']['chat']['id'] for u in data['result']}
+  update_list = sorted(data['result'], key=lambda i: i['update_id'], reverse=True)
+  cmd_list = ['/help', '/start', '/start_over']
+  for u in update_list:
+    chat_id = u['message']['chat']['id']
+    if chat_id in id_set:
+      id_set.remove(chat_id)
+      try:
+        if u['message']['text'] in cmd_list:
+          res = 'You got me! ZtudentBot was offline for a moment. Please repeat your command.'
+          bot.send_message(chat_id, res)
+      except KeyError:
+        # this runs only if other file types were sent to the bot
+        res = 'The type of your previous message is not supported. Please try again in plain text.'
+        bot.send_message(chat_id, res)
+
+  print('Bot running...')
+  bot.infinity_polling(skip_pending=True)
+  conn.close()
+
+
+num_retries = 3
+url = f'https://api.telegram.org/bot{API_KEY}/getUpdates'
+while num_retries > 0:
+  try:
+    response = requests.get(url)
+    if response.ok:
+      data = json.loads(response.text)
+      _init_bot(data) if data['ok'] else print(
+        'Telegram old updates data is not ok')
+    else:
+      print(f"HTTP Error: {response.status_code}")
+  except Exception as e:
+    print(f"Error: {e}")
+    time.sleep(1)
+
+  num_retries -= 1
+  print(f'Reinitailizing bot...{num_retries}')
